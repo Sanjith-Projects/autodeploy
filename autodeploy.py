@@ -1,4 +1,4 @@
- import os
+import os
 
 if os.geteuid() != 0:
     print("Run with sudo!")
