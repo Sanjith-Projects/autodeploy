@@ -1,12 +1,19 @@
-import os
+ import os
+
+if os.geteuid() != 0:
+    print("Run with sudo!")
+    exit()
 
 domain = input("Enter domain name: ")
-port = input("Enter app port: ")
+app_type = input("Type (proxy/php): ")
 
-nginx_config = f"""
+if app_type == "proxy":
+    port = input("Enter app port: ")
+
+    nginx_config = f"""
 server {{
     listen 80;
-    server_name {domain} www.{domain};
+    server_name {domain};
 
     location / {{
         proxy_pass http://127.0.0.1:{port};
@@ -19,6 +26,32 @@ server {{
 }}
 """
 
+elif app_type == "php":
+    path = input("Enter folder path (e.g. /var/www/adminer): ")
+
+    nginx_config = f"""
+server {{
+    listen 80;
+    server_name {domain};
+
+    root {path};
+    index index.php index.html;
+
+    location / {{
+        try_files $uri $uri/ =404;
+    }}
+
+    location ~ \\.php$ {{
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
+    }}
+}}
+"""
+
+else:
+    print("Invalid type")
+    exit()
+
 config_path = f"/etc/nginx/sites-available/{domain}"
 
 with open(config_path, "w") as f:
@@ -26,15 +59,13 @@ with open(config_path, "w") as f:
 
 print("Nginx config created")
 
-os.system(f"ln -s {config_path} /etc/nginx/sites-enabled/{domain}")
-
+os.system(f"ln -sf {config_path} /etc/nginx/sites-enabled/{domain}")
 os.system("nginx -t")
-
 os.system("systemctl reload nginx")
 
 ssl = input("Install SSL with certbot? (y/n): ")
 
 if ssl.lower() == "y":
-    os.system(f"certbot --nginx -d {domain} -d www.{domain}")
+    os.system(f"certbot --nginx -d {domain}")
 
 print("Done!")
